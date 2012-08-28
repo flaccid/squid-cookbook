@@ -1,4 +1,3 @@
-#
 # Author:: Matt Ray <matt@opscode.com>
 # Cookbook Name:: squid
 # Recipe:: default
@@ -16,30 +15,54 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
-package "squid" do
-  action :install
-end
+package "squid"
 
-case node['platform']
-when "redhat","centos","scientific","fedora","suse"
-  template "/etc/sysconfig/squid" do
-    source "redhat/sysconfig/squid.erb"
-    notifies :restart, "service[squid]", :delayed
-    mode "644"
-  end
-end
+# would be nice to be able to set these in attributes/default.rb but value_for_platform is for recipes :(
+node['squid']['config_dir'] = value_for_platform(
+  ["centos", "redhat", "suse", "fedora" ] => {
+    "default" => "/etc/squid"
+  },
+  ["debian"] => {
+    "default" => "/etc/squid"
+  },
+  ["ubuntu"] => {
+    "12.04" => "/etc/squid3",
+    "default" => "/etc/squid"
+  }
+)
+node['squid']['service_name'] = value_for_platform(
+  ["centos", "redhat", "suse", "fedora" ] => {
+    "default" => "squid"
+  },
+  ["debian"] => {
+    "default" => "squid"
+  },
+  ["ubuntu"] => {
+    "12.04" => "squid3",
+    "default" => "squid"
+  }
+)
+node['squid']['config_file'] = File.join(node['squid']['config_dir'], node['squid']['service_name'], '.conf')
 
-service "squid" do
-  supports :restart => true, :status => true, :reload => true
+service node['squid']['service_name'] do
   case node['platform']
   when "redhat","centos","scientific","fedora","suse"
     provider Chef::Provider::Service::Redhat
   when "debian","ubuntu"
     provider Chef::Provider::Service::Upstart
   end
+  supports :restart => true, :status => true, :reload => true
   action [ :enable, :start ]
+end
+
+case node['platform']
+when "redhat","centos","scientific","fedora","suse"
+  template "/etc/sysconfig/squid" do
+    source "redhat/sysconfig/squid.erb"
+    notifies :restart, "service[#{node['squid']['service_name']}]", :delayed
+    mode "644"
+  end
 end
 
 if node['squid']['network']
@@ -52,9 +75,9 @@ Chef::Log.info "Squid network #{network}"
 version = node['squid']['version']
 Chef::Log.info "Squid version number (unknown if blank): #{version}"
 
-template "/etc/squid/squid.conf" do
+template "#{node['squid']['config_dir']}/squid.conf" do
   source "squid#{version}.conf.erb"
-  notifies :reload, "service[squid]"
+  notifies :reload, "service[#{node['squid']['service_name']}]"
   mode "644"
 end
 
@@ -94,13 +117,12 @@ rescue
   Chef::Log.info "no 'squid_acls' data bag"
 end
 
-template "/etc/squid/chef.acl.config" do
+template "#{node['squid']['config_dir']}/chef.acl.config" do
   source "chef.acl.config.erb"
   variables(
     :acls => acls,
     :host_acl => host_acl,
     :url_acl => url_acl
     )
-  notifies :reload, "service[squid]"
+  notifies :reload, "service[#{node['squid']['service_name']}]"
 end
-
