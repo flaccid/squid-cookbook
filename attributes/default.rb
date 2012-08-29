@@ -23,3 +23,6 @@ default['squid']['network'] = nil
 default['squid']['timeout'] = "10"
 default['squid']['opts'] = ""
 default['squid']['version'] = ""
+default['squid']['config_dir'] = "/etc/squid"
+default['squid']['service_name'] = "squid"
+default['squid']['config_file'] = "/etc/squid/squid.conf"
